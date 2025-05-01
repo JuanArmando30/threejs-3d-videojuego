@@ -1,0 +1,56 @@
+html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden; /* Importante: evita cualquier scroll */
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Navbar fija arriba */
+nav.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    height: 60px;
+}
+
+/* Footer fijo abajo */
+footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    z-index: 10;
+}
+
+/* Main content ocupa el espacio entre navbar y footer */
+#main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding-top: 60px; /* mismo alto que navbar */
+    padding-bottom: 40px; /* mismo alto que footer */
+    overflow: hidden; /* No permitir scroll aquí tampoco */
+}
+
+#info {
+    text-align: center;
+    margin-bottom: 20px;
+    color: white;
+}
+
+#container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
