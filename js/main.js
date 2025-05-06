@@ -1,7 +1,5 @@
 import * as THREE from 'three';
 
-import Stats from 'three/addons/libs/stats.module.js';
-
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 import { Octree } from 'three/addons/math/Octree.js';
@@ -19,6 +17,9 @@ scene.fog = new THREE.Fog(0x88ccee, 0, 50);
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.rotation.order = 'YXZ';
+
+// Cambiar orientación inicial
+camera.lookAt(new THREE.Vector3(camera.position.x - 1, camera.position.y, camera.position.z));  // mirar hacia +X (ejemplo)
 
 const fillLight1 = new THREE.HemisphereLight(0x8dc1de, 0x00668d, 1.5);
 fillLight1.position.set(2, 1, 1);
@@ -44,18 +45,13 @@ const container = document.getElementById('container');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setAnimationLoop(animate);
+
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.VSMShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 container.appendChild(renderer.domElement);
 
-const stats = new Stats();
-stats.domElement.style.position = 'absolute';
-stats.domElement.style.top = '0px';
-container.appendChild(stats.domElement);
-
-const GRAVITY = 30;
+const GRAVITY = 15;
 
 const NUM_SPHERES = 100;
 const SPHERE_RADIUS = 0.2;
@@ -81,11 +77,86 @@ for (let i = 0; i < NUM_SPHERES; i++) {
         collider: new THREE.Sphere(new THREE.Vector3(0, - 100, 0), SPHERE_RADIUS),
         velocity: new THREE.Vector3()
     });
+
 }
 
 const worldOctree = new Octree();
 
-const playerCollider = new Capsule(new THREE.Vector3(0, 0.2, 0), new THREE.Vector3(0, 0.9, 0), 0.01);
+const playerCollider = new Capsule(new THREE.Vector3(50, 0, 0), new THREE.Vector3(50, 0.65, 0), 0.35);
+
+// Crear elemento HTML para el contador (centrado arriba)
+const contadorElement = document.createElement('div');
+contadorElement.style.position = 'absolute';
+contadorElement.style.top = '20px';
+contadorElement.style.left = '50%';
+contadorElement.style.transform = 'translateX(-50%)';
+contadorElement.style.padding = '10px 20px';
+contadorElement.style.backgroundColor = 'rgba(0,0,0,0.5)';
+contadorElement.style.color = 'white';
+contadorElement.style.fontFamily = 'Arial';
+contadorElement.style.fontSize = '20px';
+contadorElement.style.borderRadius = '8px';
+contadorElement.style.textAlign = 'center';
+document.body.appendChild(contadorElement);
+
+// Crear fondo oscuro (overlay), oculto inicialmente
+const overlay = document.createElement('div');
+overlay.style.position = 'fixed';
+overlay.style.top = '0';
+overlay.style.left = '0';
+overlay.style.width = '100%';
+overlay.style.height = '100%';
+overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.6)'; // Negro con transparencia
+overlay.style.display = 'none';
+overlay.style.zIndex = '999'; // Debajo de la imagen
+document.body.appendChild(overlay);
+
+// Crear imagen grande (oculta inicialmente)
+const imagenGrande = document.createElement('img');
+imagenGrande.src = './img/Mapa.png'; // <-- Cambia esto por tu imagen
+imagenGrande.style.position = 'fixed';
+imagenGrande.style.top = '50%';
+imagenGrande.style.left = '50%';
+imagenGrande.style.transform = 'translate(-50%, -50%)';
+imagenGrande.style.maxWidth = '80%';
+imagenGrande.style.maxHeight = '80%';
+imagenGrande.style.display = 'none';
+imagenGrande.style.zIndex = '1000'; // Encima del overlay
+document.body.appendChild(imagenGrande);
+
+overlay.style.transition = 'opacity 0.4s';
+
+let juegoPausado = false;
+let intervaloContador = null; // Para controlar el cronómetro y pausarlo
+let tiempoRestante = 5 * 60;  // Mover esta variable fuera de la función iniciarContador
+
+// Función para iniciar la cuenta regresiva de 5 minutos
+function iniciarContador() {
+    function actualizarContador() {
+        const minutos = Math.floor(tiempoRestante / 60);
+        const segundos = tiempoRestante % 60;
+        contadorElement.textContent = `Tiempo restante: ${minutos}:${segundos.toString().padStart(2, '0')}`;
+
+        if (tiempoRestante <= 0) {
+            clearInterval(intervaloContador);
+            contadorElement.textContent = '¡Tiempo agotado!';
+            contadorElement.style.color = 'red';
+        }
+    }
+
+    actualizarContador(); // Mostrar de inmediato
+    intervaloContador = setInterval(() => {
+        if (!juegoPausado && tiempoRestante > 0) {
+            tiempoRestante--;
+            actualizarContador();
+        }
+    }, 1000);
+
+}
+
+// Llamar a iniciarContador() cuando se genere el personaje
+// (Solo llama esto en la función donde creas al personaje)
+iniciarContador();
 
 const playerVelocity = new THREE.Vector3();
 const playerDirection = new THREE.Vector3();
@@ -102,6 +173,32 @@ const vector3 = new THREE.Vector3();
 document.addEventListener('keydown', (event) => {
 
     keyStates[event.code] = true;
+
+    // Alternar visibilidad de la imagen con la tecla "m"
+    if (event.code === 'KeyM') {
+        if (imagenGrande.style.display === 'none') {
+            overlay.style.display = 'block';
+            overlay.style.opacity = '0';
+            requestAnimationFrame(() => {
+                overlay.style.opacity = '1';
+            });
+            imagenGrande.style.display = 'block';
+        } else {
+            overlay.style.opacity = '0';
+            setTimeout(() => {
+                overlay.style.display = 'none';
+            }, 300);
+            imagenGrande.style.display = 'none';
+        }
+    }
+
+    if (event.code === 'KeyP') {
+        if (!juegoPausado) {
+            pausarJuego();
+        } else {
+            reanudarJuego();
+        }
+    }
 
 });
 
@@ -148,6 +245,8 @@ function onWindowResize() {
 }
 
 function throwBall() {
+
+    if (juegoPausado) return;  // No lanzar si está pausado
 
     const sphere = spheres[sphereIdx];
 
@@ -344,6 +443,8 @@ function getSideVector() {
 
 function controls(deltaTime) {
 
+    if (juegoPausado || juegoGanado) return;  // No mover si está pausado
+
     // gives a bit of air control
     const speedDelta = deltaTime * (playerOnFloor ? 25 : 8);
 
@@ -375,7 +476,7 @@ function controls(deltaTime) {
 
         if (keyStates['Space']) {
 
-            playerVelocity.y = 9;
+            playerVelocity.y = 15;
 
         }
 
@@ -386,88 +487,373 @@ function controls(deltaTime) {
 const loader = new GLTFLoader().setPath('./models/');
 
 loader.load('Laberinto.glb', (gltf) => {
+
     scene.add(gltf.scene);
 
     worldOctree.fromGraphNode(gltf.scene);
 
     gltf.scene.traverse(child => {
+
         if (child.isMesh) {
+
             child.castShadow = true;
             child.receiveShadow = true;
+
             if (child.material.map) {
+
                 child.material.map.anisotropy = 4;
+
             }
+
         }
+
     });
 
-    // NUEVO CÓDIGO: Posicionar al jugador encima del laberinto automáticamente
-    const startPosition = new THREE.Vector3(0, 20, 0);  // Altura alta para "caer"
-    const downDirection = new THREE.Vector3(0, -1, 0); // Raycast hacia abajo
-    const rayResult = worldOctree.rayIntersect(startPosition, downDirection);
-
-    if (rayResult) {
-        // Colocamos el jugador justo encima del punto de colisión encontrado
-        const groundY = rayResult.point.y;
-        const safeHeight = 1.0;  // Altura segura por encima del suelo
-
-        playerCollider.start.set(0, groundY + safeHeight, 0);
-        playerCollider.end.set(0, groundY + safeHeight + 0.65, 0);
-        camera.position.copy(playerCollider.end);
-        console.log(`Jugador colocado en: ${camera.position.toArray()}`);
-    } else {
-        console.warn("No se encontró suelo bajo la posición inicial, usando posición por defecto.");
-    }
-
-    // GUI para ver Octree (esto ya estaba)
-    const helper = new OctreeHelper(worldOctree);
-    helper.visible = false;
-    scene.add(helper);
-
-    const gui = new GUI({ width: 200 });
-    gui.add({ debug: false }, 'debug')
-        .onChange(function (value) {
-            helper.visible = value;
-        });
+    renderer.setAnimationLoop(animate);
 });
-
-playerCollider.start.set(50, 10, 0);
-playerCollider.end.set(50, 10.65, 0);
-camera.position.copy(playerCollider.end);
 
 function teleportPlayerIfOob() {
 
     if (camera.position.y <= - 25) {
 
-        playerCollider.start.set(50, 10, 0);
-        playerCollider.end.set(50, 10.65, 0);
+        playerCollider.start.set(50, 0, 0);
+        playerCollider.end.set(50, 0.65, 0);
         playerCollider.radius = 0.35;
         camera.position.copy(playerCollider.end);
         camera.rotation.set(0, 0, 0);
 
+        // Cambiar orientación inicial
+        camera.lookAt(new THREE.Vector3(camera.position.x - 1, camera.position.y, camera.position.z));  // mirar hacia +X (ejemplo)
+
     }
+
 }
+
+// Footer
+const footer = document.createElement('footer');
+footer.innerHTML = '<p style="text-align:center; padding:10px; color:white; position:fixed; bottom:0; width:100%; font-size: 18px; font-family:\'Monospace\', sans-serif;">&copy; 2025. Todos los derechos reservados | Juan Armando Castillo Rodríguez</p>';
+document.body.appendChild(footer);
+
+// Variables para referencia de las bombas
+let bombaOriginal, bombaClon1, bombaClon2;
+
+// Crear elemento HTML para mostrar distancia (HUD a la derecha)
+const distanciaIndicator = document.createElement('div');
+distanciaIndicator.style.position = 'absolute';
+distanciaIndicator.style.top = '20px';
+distanciaIndicator.style.right = '15px'; // <-- Mover a la derecha
+distanciaIndicator.style.padding = '10px';
+distanciaIndicator.style.backgroundColor = 'rgba(0,0,0,0.5)';
+distanciaIndicator.style.color = 'lime';
+distanciaIndicator.style.fontFamily = 'Arial';
+distanciaIndicator.style.fontSize = '16px';
+distanciaIndicator.style.borderRadius = '8px';
+distanciaIndicator.style.whiteSpace = 'pre'; // Permitir saltos de línea con \n
+document.body.appendChild(distanciaIndicator);
+
+const mensajeInteraccion = document.createElement('div');
+mensajeInteraccion.style.position = 'absolute';
+mensajeInteraccion.style.bottom = '20px';
+mensajeInteraccion.style.left = '50%';
+mensajeInteraccion.style.transform = 'translateX(-50%)';
+mensajeInteraccion.style.padding = '12px 20px';
+mensajeInteraccion.style.backgroundColor = 'rgba(0,0,0,0.7)';
+mensajeInteraccion.style.color = 'white';
+mensajeInteraccion.style.fontFamily = 'Arial';
+mensajeInteraccion.style.fontSize = '18px';
+mensajeInteraccion.style.borderRadius = '10px';
+mensajeInteraccion.style.display = 'none'; // Oculto por defecto
+document.body.appendChild(mensajeInteraccion);
+
+let bombaInteractuable = null;
+let bombaDesactivada = new Set(); // Para no desactivar la misma bomba múltiples veces
+let desactivando = false;
+
+let bombaEnProceso = null;
+let desactivarTimeout = null;
+
+let tiempoTranscurrido = 0;
+let cronometroActivo = true;
+
+let juegoGanado = false;
 
 function animate() {
 
-    const deltaTime = Math.min(0.05, clock.getDelta()) / STEPS_PER_FRAME;
-
-    // we look for collisions in substeps to mitigate the risk of
-    // an object traversing another too quickly for detection.
+    const delta = clock.getDelta();
+    const deltaTime = Math.min(0.05, delta) / STEPS_PER_FRAME;
 
     for (let i = 0; i < STEPS_PER_FRAME; i++) {
 
         controls(deltaTime);
-
         updatePlayer(deltaTime);
-
         updateSpheres(deltaTime);
-
         teleportPlayerIfOob();
+
+    }
+
+    // Actualizar indicador de distancia a bombas
+    if (bombaOriginal && bombaClon1 && bombaClon2) {
+
+        const distOriginal = camera.position.distanceTo(bombaOriginal.position);
+        const distClon1 = camera.position.distanceTo(bombaClon1.position);
+        const distClon2 = camera.position.distanceTo(bombaClon2.position);
+
+
+        // Determinar bomba más cercana y su distancia
+        const distancias = [
+            { nombre: 'Bomba 1', distancia: distOriginal, objeto: bombaOriginal },
+            { nombre: 'Bomba 2', distancia: distClon1, objeto: bombaClon1 },
+            { nombre: 'Bomba 3', distancia: distClon2, objeto: bombaClon2 }
+        ].filter(bomba => !bombaDesactivada.has(bomba.objeto));
+
+        if (distancias.length > 0) {
+            distancias.sort((a, b) => a.distancia - b.distancia);
+            const bombaCercana = distancias[0];
+
+            // Resto del código igual
+            let color = 'lime';
+            if (bombaCercana.distancia < 5) {
+                color = 'red';
+            } else if (bombaCercana.distancia < 15) {
+                color = 'orange';
+            }
+
+            distanciaIndicator.style.color = color;
+            distanciaIndicator.innerText = `${bombaCercana.nombre}\nDistancia: ${bombaCercana.distancia.toFixed(2)} m`;
+
+            if (!desactivando && bombaCercana.distancia < 2 && !bombaDesactivada.has(bombaCercana.objeto)) {
+                mensajeInteraccion.innerText = 'Presiona "E" para desactivar';
+                mensajeInteraccion.style.display = 'block';
+                bombaInteractuable = bombaCercana.objeto;
+            } else if (!desactivando) {
+                mensajeInteraccion.style.display = 'none';
+                bombaInteractuable = null;
+            }
+
+            // Cancelar desactivación si te alejas
+            if (desactivando && bombaEnProceso) {
+                const distanciaActual = camera.position.distanceTo(bombaEnProceso.position);
+                if (distanciaActual > 2) {
+                    clearTimeout(desactivarTimeout);
+                    mensajeInteraccion.innerText = 'Desactivación cancelada (demasiado lejos)';
+                    setTimeout(() => {
+                        mensajeInteraccion.style.display = 'none';
+                    }, 2000);
+                    desactivando = false;
+                    bombaEnProceso = null;
+                }
+            }
+        } else {
+            // Si ya no hay bombas activas
+            distanciaIndicator.innerText = 'Todas las bombas están desactivadas';
+            distanciaIndicator.style.color = 'white';
+            mensajeInteraccion.style.display = 'none';
+            bombaInteractuable = null;
+
+            // Detener cronómetro (si tienes una variable como 'cronometroActivo')
+            cronometroActivo = false;
+
+            cronometroActivo = false;
+            juegoGanado = true; // <-- IMPORTANTE
+
+            if (!document.getElementById('victoriaOverlay')) {
+
+                document.exitPointerLock();
+
+                // Fondo negro translúcido detrás del mensaje
+                const fondoOscuro = document.createElement('div');
+                fondoOscuro.style.position = 'fixed';
+                fondoOscuro.style.top = '0';
+                fondoOscuro.style.left = '0';
+                fondoOscuro.style.width = '100%';
+                fondoOscuro.style.height = '100%';
+                fondoOscuro.style.backgroundColor = 'rgba(0, 0, 0, 0.85)';
+                fondoOscuro.style.zIndex = '1001';
+                document.body.appendChild(fondoOscuro);
+
+                const victoriaOverlay = document.createElement('div');
+                victoriaOverlay.id = 'victoriaOverlay';
+                victoriaOverlay.style.position = 'fixed';
+                victoriaOverlay.style.top = '50%';
+                victoriaOverlay.style.left = '50%';
+                victoriaOverlay.style.transform = 'translate(-50%, -50%)';
+                victoriaOverlay.style.backgroundColor = 'rgba(0,0,0,0.9)';
+                victoriaOverlay.style.padding = '40px 60px';
+                victoriaOverlay.style.borderRadius = '12px';
+                victoriaOverlay.style.color = 'white';
+                victoriaOverlay.style.fontFamily = 'Arial';
+                victoriaOverlay.style.fontSize = '32px';
+                victoriaOverlay.style.fontWeight = 'bold';
+                victoriaOverlay.style.textAlign = 'center';
+                victoriaOverlay.style.zIndex = '1002';
+
+                const tiempoFinal = Math.floor(tiempoTranscurrido);
+                victoriaOverlay.innerHTML = `🎉 ¡Has ganado! 🎉<br><br>Tiempo: ${tiempoFinal} segundos<br><br>`;
+
+                const botonSalirFinal = document.createElement('button');
+                botonSalirFinal.textContent = 'Salir';
+                botonSalirFinal.style.marginTop = '20px';
+                botonSalirFinal.style.padding = '10px 25px';
+                botonSalirFinal.style.fontSize = '20px';
+                botonSalirFinal.onclick = () => location.reload();
+
+                victoriaOverlay.appendChild(botonSalirFinal);
+                document.body.appendChild(victoriaOverlay);
+            }
+        }
+
+        if (cronometroActivo) {
+            tiempoTranscurrido += delta;
+        }
 
     }
 
     renderer.render(scene, camera);
 
-    stats.update();
-
 }
+
+window.addEventListener('keydown', (event) => {
+    if (event.key.toLowerCase() === 'e' && bombaInteractuable && !bombaDesactivada.has(bombaInteractuable)) {
+        desactivarBomba(bombaInteractuable);
+    }
+});
+
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+
+const CHARACTER_PATH = "./models/Bomba.glb";
+
+function loadGLTF(url) {
+    return new Promise((resolve, reject) => {
+        new GLTFLoader().load(
+            url,
+            (gltf) => resolve(gltf),
+            undefined,
+            (error) => reject(error)
+        );
+    });
+}
+
+const bombas = [];
+
+loadGLTF(CHARACTER_PATH)
+    .then((gltf) => {
+        scene.add(gltf.scene);
+
+        const clone = SkeletonUtils.clone(gltf.scene);
+        const clone2 = SkeletonUtils.clone(gltf.scene);
+
+        gltf.scene.position.set(0, 0, 3);
+        gltf.scene.scale.set(1.2, 1.2, 1.2);
+
+        clone.position.set(18, 0, 0);
+        clone.scale.set(1.2, 1.2, 1.2);
+        clone.rotation.y = Math.PI / -2;
+
+        clone2.position.set(20, 0, 25);
+        clone2.scale.set(1.2, 1.2, 1.2);
+        clone2.rotation.y = Math.PI / 2;
+
+        scene.add(clone);
+        scene.add(clone2);
+
+        // Guarda las referencias globales
+        bombaOriginal = gltf.scene;
+        bombaClon1 = clone;
+        bombaClon2 = clone2;
+    })
+    .catch((error) => {
+        console.log(error);
+    });
+
+// Menú de pausa (overlay oscuro con botones)
+const pausaMenu = document.createElement('div');
+pausaMenu.style.position = 'fixed';
+pausaMenu.style.top = '50%';
+pausaMenu.style.left = '50%';
+pausaMenu.style.transform = 'translate(-50%, -50%)';
+pausaMenu.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+pausaMenu.style.padding = '30px';
+pausaMenu.style.borderRadius = '10px';
+pausaMenu.style.display = 'none';
+pausaMenu.style.zIndex = '1001';
+pausaMenu.style.textAlign = 'center';
+
+// Botón Reanudar
+const botonReanudar = document.createElement('button');
+botonReanudar.textContent = 'Reanudar';
+botonReanudar.style.margin = '10px';
+botonReanudar.style.padding = '10px 20px';
+botonReanudar.style.fontSize = '18px';
+botonReanudar.onclick = reanudarJuego;
+pausaMenu.appendChild(botonReanudar);
+
+// Botón Salir
+const botonSalir = document.createElement('button');
+botonSalir.textContent = 'Salir';
+botonSalir.style.margin = '10px';
+botonSalir.style.padding = '10px 20px';
+botonSalir.style.fontSize = '18px';
+botonSalir.onclick = () => location.href = 'index.html'; // Redirige a otra página
+pausaMenu.appendChild(botonSalir);
+
+// Crear texto "PAUSADO" (oculto inicialmente)
+const textoPausado = document.createElement('div');
+textoPausado.textContent = 'PAUSADO';
+textoPausado.style.position = 'fixed';
+textoPausado.style.top = '35%';
+textoPausado.style.left = '50%';
+textoPausado.style.transform = 'translate(-50%, -50%)';
+textoPausado.style.color = 'white';
+textoPausado.style.fontFamily = 'Arial';
+textoPausado.style.fontSize = '48px';
+textoPausado.style.fontWeight = 'bold';
+textoPausado.style.textShadow = '2px 2px 8px rgba(0,0,0,0.7)';
+textoPausado.style.display = 'none';
+textoPausado.style.zIndex = '1001'; // Encima de todo
+document.body.appendChild(textoPausado);
+
+document.body.appendChild(pausaMenu);
+
+function pausarJuego() {
+    juegoPausado = true;
+    overlay.style.display = 'block';
+    overlay.style.opacity = '1';
+    pausaMenu.style.display = 'block';
+    textoPausado.style.display = 'block';
+
+    document.exitPointerLock();
+}
+
+function reanudarJuego() {
+    juegoPausado = false;
+    overlay.style.opacity = '0';
+    overlay.style.display = 'none';
+    pausaMenu.style.display = 'none';
+    textoPausado.style.display = 'none';
+
+    document.body.requestPointerLock();
+}
+
+function desactivarBomba(bomba) {
+    desactivando = true;
+    bombaEnProceso = bomba;
+
+    mensajeInteraccion.innerText = 'Desactivando...';
+    mensajeInteraccion.style.display = 'block';
+
+    // Inicia el temporizador para completar desactivación
+    desactivarTimeout = setTimeout(() => {
+        bombaDesactivada.add(bomba);
+
+        // Nuevo mensaje en el centro
+        mensajeCentral.innerText = '¡BOMBA DESACTIVADA!';
+        mensajeCentral.style.display = 'block';
+
+        setTimeout(() => {
+            mensajeCentral.style.display = 'none';
+            desactivando = false;
+            bombaEnProceso = null;
+        }, 1700);
+    }, 5000);
+}
+
