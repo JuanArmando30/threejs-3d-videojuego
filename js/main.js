@@ -51,7 +51,10 @@ renderer.shadowMap.type = THREE.VSMShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 container.appendChild(renderer.domElement);
 
-const GRAVITY = 15;
+const GRAVITY = 50;
+
+let GRAVITY_SUPLEMENTO = 0;  // Por defecto no cambia la gravedad
+let SPEED_MULTIPLIER = 1.0;  // Por defecto velocidad normal
 
 const NUM_SPHERES = 100;
 const SPHERE_RADIUS = 0.2;
@@ -99,6 +102,21 @@ contadorElement.style.borderRadius = '8px';
 contadorElement.style.textAlign = 'center';
 document.body.appendChild(contadorElement);
 
+const superpoderIndicator = document.createElement('div');
+superpoderIndicator.style.position = 'absolute';
+superpoderIndicator.style.top = '75px'; // Debajo del cronómetro (ajusta si quieres)
+superpoderIndicator.style.left = '50%';
+superpoderIndicator.style.transform = 'translateX(-50%)';
+superpoderIndicator.style.padding = '8px 16px';
+superpoderIndicator.style.backgroundColor = 'rgba(0,0,0,0.5)';
+superpoderIndicator.style.color = 'cyan';
+superpoderIndicator.style.fontFamily = 'Arial';
+superpoderIndicator.style.fontSize = '16px';
+superpoderIndicator.style.borderRadius = '8px';
+superpoderIndicator.style.textAlign = 'center';
+superpoderIndicator.style.display = 'none';
+document.body.appendChild(superpoderIndicator);
+
 // Crear fondo oscuro (overlay), oculto inicialmente
 const overlay = document.createElement('div');
 overlay.style.position = 'fixed';
@@ -128,9 +146,9 @@ overlay.style.transition = 'opacity 0.4s';
 
 let juegoPausado = false;
 let intervaloContador = null; // Para controlar el cronómetro y pausarlo
-let tiempoRestante = 5 * 60;  // Mover esta variable fuera de la función iniciarContador
+let tiempoRestante = 8 * 60;  // Mover esta variable fuera de la función iniciarContador
 
-// Función para iniciar la cuenta regresiva de 5 minutos
+// Función para iniciar la cuenta regresiva de 8 minutos
 function iniciarContador() {
     function actualizarContador() {
         const minutos = Math.floor(tiempoRestante / 60);
@@ -141,7 +159,9 @@ function iniciarContador() {
             clearInterval(intervaloContador);
             contadorElement.textContent = '¡Tiempo agotado!';
             contadorElement.style.color = 'red';
-        }
+        
+            mostrarPantallaDerrota(); // <-- Agrega esta línea aquí
+        }        
     }
 
     actualizarContador(); // Mostrar de inmediato
@@ -153,10 +173,6 @@ function iniciarContador() {
     }, 1000);
 
 }
-
-// Llamar a iniciarContador() cuando se genere el personaje
-// (Solo llama esto en la función donde creas al personaje)
-iniciarContador();
 
 const playerVelocity = new THREE.Vector3();
 const playerDirection = new THREE.Vector3();
@@ -170,6 +186,8 @@ const vector1 = new THREE.Vector3();
 const vector2 = new THREE.Vector3();
 const vector3 = new THREE.Vector3();
 
+let imagenMostrada = false;
+
 document.addEventListener('keydown', (event) => {
 
     keyStates[event.code] = true;
@@ -179,12 +197,14 @@ document.addEventListener('keydown', (event) => {
         if (imagenGrande.style.display === 'none') {
             overlay.style.display = 'block';
             overlay.style.opacity = '0';
+            imagenMostrada = true;
             requestAnimationFrame(() => {
                 overlay.style.opacity = '1';
             });
             imagenGrande.style.display = 'block';
         } else {
             overlay.style.opacity = '0';
+            imagenMostrada = false;
             setTimeout(() => {
                 overlay.style.display = 'none';
             }, 300);
@@ -297,7 +317,7 @@ function updatePlayer(deltaTime) {
 
     if (!playerOnFloor) {
 
-        playerVelocity.y -= GRAVITY * deltaTime;
+        playerVelocity.y -= (GRAVITY + GRAVITY_SUPLEMENTO) * deltaTime;
 
         // small air resistance
         damping *= 0.1;
@@ -408,6 +428,22 @@ function updateSpheres(deltaTime) {
 
         playerSphereCollision(sphere);
 
+        cubosSuperpoder.forEach(cubo => {
+            const distancia = sphere.collider.center.distanceTo(cubo.position);
+            const umbral = SPHERE_RADIUS + 1.5;
+
+            if (distancia < umbral && !cubo.usado) {
+                cubo.usado = true;
+
+                // Desaparecer cubo y esfera
+                scene.remove(cubo);
+                scene.remove(sphere.mesh);
+                sphere.collider.center.set(0, -100, 0);  // Mover esfera fuera del mapa
+                sphere.velocity.set(0, 0, 0);
+
+                activarSuperpoder();
+            }
+        });
     });
 
     spheresCollisions();
@@ -443,10 +479,10 @@ function getSideVector() {
 
 function controls(deltaTime) {
 
-    if (juegoPausado || juegoGanado) return;  // No mover si está pausado
+    if (juegoPausado || juegoGanado || imagenMostrada) return;  // No mover si está pausado
 
     // gives a bit of air control
-    const speedDelta = deltaTime * (playerOnFloor ? 25 : 8);
+    const speedDelta = deltaTime * (playerOnFloor ? 25 : 8) * SPEED_MULTIPLIER;
 
     if (keyStates['KeyW']) {
 
@@ -509,6 +545,9 @@ loader.load('Laberinto.glb', (gltf) => {
 
     });
 
+    // Llamar a iniciarContador() cuando se genere el personaje
+    // (Solo llama esto en la función donde creas al personaje)
+    iniciarContador();
     renderer.setAnimationLoop(animate);
 });
 
@@ -535,7 +574,7 @@ footer.innerHTML = '<p style="text-align:center; padding:10px; color:white; posi
 document.body.appendChild(footer);
 
 // Variables para referencia de las bombas
-let bombaOriginal, bombaClon1, bombaClon2;
+let bombaOriginal, bombaClon1, bombaClon2, bombaClon3, bombaClon4, bombaClon5, bombaClon6, bombaClon7, bombaClon8, bombaClon9;
 
 // Crear elemento HTML para mostrar distancia (HUD a la derecha)
 const distanciaIndicator = document.createElement('div');
@@ -565,6 +604,21 @@ mensajeInteraccion.style.borderRadius = '10px';
 mensajeInteraccion.style.display = 'none'; // Oculto por defecto
 document.body.appendChild(mensajeInteraccion);
 
+const mensajeSuperpoder = document.createElement('div');
+mensajeSuperpoder.style.position = 'absolute';
+mensajeSuperpoder.style.top = '50%';
+mensajeSuperpoder.style.left = '50%';
+mensajeSuperpoder.style.transform = 'translate(-50%, -50%)';
+mensajeSuperpoder.style.padding = '20px 40px';
+mensajeSuperpoder.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+mensajeSuperpoder.style.color = 'yellow';
+mensajeSuperpoder.style.fontFamily = 'Arial';
+mensajeSuperpoder.style.fontSize = '28px';
+mensajeSuperpoder.style.borderRadius = '12px';
+mensajeSuperpoder.style.display = 'none';
+mensajeSuperpoder.style.zIndex = '1001';
+document.body.appendChild(mensajeSuperpoder);
+
 let bombaInteractuable = null;
 let bombaDesactivada = new Set(); // Para no desactivar la misma bomba múltiples veces
 let desactivando = false;
@@ -592,18 +646,32 @@ function animate() {
     }
 
     // Actualizar indicador de distancia a bombas
-    if (bombaOriginal && bombaClon1 && bombaClon2) {
+    if (bombaOriginal && bombaClon1 && bombaClon2 && bombaClon3 && bombaClon4 && bombaClon5 && bombaClon6 && bombaClon7 && bombaClon8 && bombaClon9) {
 
         const distOriginal = camera.position.distanceTo(bombaOriginal.position);
         const distClon1 = camera.position.distanceTo(bombaClon1.position);
         const distClon2 = camera.position.distanceTo(bombaClon2.position);
+        const distClon3 = camera.position.distanceTo(bombaClon3.position);
+        const distClon4 = camera.position.distanceTo(bombaClon4.position);
+        const distClon5 = camera.position.distanceTo(bombaClon5.position);
+        const distClon6 = camera.position.distanceTo(bombaClon6.position);
+        const distClon7 = camera.position.distanceTo(bombaClon7.position);
+        const distClon8 = camera.position.distanceTo(bombaClon8.position);
+        const distClon9 = camera.position.distanceTo(bombaClon9.position);
 
 
         // Determinar bomba más cercana y su distancia
         const distancias = [
             { nombre: 'Bomba 1', distancia: distOriginal, objeto: bombaOriginal },
             { nombre: 'Bomba 2', distancia: distClon1, objeto: bombaClon1 },
-            { nombre: 'Bomba 3', distancia: distClon2, objeto: bombaClon2 }
+            { nombre: 'Bomba 3', distancia: distClon2, objeto: bombaClon2 },
+            { nombre: 'Bomba 4', distancia: distClon3, objeto: bombaClon3 },
+            { nombre: 'Bomba 5', distancia: distClon4, objeto: bombaClon4 },
+            { nombre: 'Bomba 6', distancia: distClon5, objeto: bombaClon5 },
+            { nombre: 'Bomba 7', distancia: distClon6, objeto: bombaClon6 },
+            { nombre: 'Bomba 8', distancia: distClon7, objeto: bombaClon7 },
+            { nombre: 'Bomba 9', distancia: distClon8, objeto: bombaClon8 },
+            { nombre: 'Bomba 10', distancia: distClon9, objeto: bombaClon9 }
         ].filter(bomba => !bombaDesactivada.has(bomba.objeto));
 
         if (distancias.length > 0) {
@@ -733,14 +801,19 @@ function loadGLTF(url) {
     });
 }
 
-const bombas = [];
-
 loadGLTF(CHARACTER_PATH)
     .then((gltf) => {
         scene.add(gltf.scene);
 
         const clone = SkeletonUtils.clone(gltf.scene);
         const clone2 = SkeletonUtils.clone(gltf.scene);
+        const clone3 = SkeletonUtils.clone(gltf.scene);
+        const clone4 = SkeletonUtils.clone(gltf.scene);
+        const clone5 = SkeletonUtils.clone(gltf.scene);
+        const clone6 = SkeletonUtils.clone(gltf.scene);
+        const clone7 = SkeletonUtils.clone(gltf.scene);
+        const clone8 = SkeletonUtils.clone(gltf.scene);
+        const clone9 = SkeletonUtils.clone(gltf.scene);
 
         gltf.scene.position.set(0, 0, 3);
         gltf.scene.scale.set(1.2, 1.2, 1.2);
@@ -753,13 +826,47 @@ loadGLTF(CHARACTER_PATH)
         clone2.scale.set(1.2, 1.2, 1.2);
         clone2.rotation.y = Math.PI / 2;
 
+        clone3.position.set(-10, 0, -25);
+        clone3.scale.set(1.2, 1.2, 1.2);
+
+        clone4.position.set(30, 0, -11);
+        clone4.scale.set(1.2, 1.2, 1.2);
+        clone4.rotation.y = Math.PI / -2;
+
+        clone5.position.set(-10, 0, 20);
+        clone5.scale.set(1.2, 1.2, 1.2);
+        clone5.rotation.y = Math.PI / 2;
+
+        clone6.position.set(20, 0, 0);
+        clone6.scale.set(1.2, 1.2, 1.2);
+        clone6.rotation.y = Math.PI / 2;
+
+        clone7.position.set(-20, 0, 5);
+        clone7.scale.set(1.2, 1.2, 1.2);
+        clone7.rotation.y = Math.PI / -2;
+
+        clone8.position.set(-25, 0, 15);
+        clone8.scale.set(1.2, 1.2, 1.2);
+        clone7.rotation.y = Math.PI / -2;
+
+        clone9.position.set(-40, 0, 0);
+        clone9.scale.set(1.2, 1.2, 1.2);
+        clone9.rotation.y = Math.PI / 2;
+
         scene.add(clone);
-        scene.add(clone2);
+        scene.add(clone2, clone3, clone4, clone5, clone6, clone7, clone8, clone9);
 
         // Guarda las referencias globales
         bombaOriginal = gltf.scene;
         bombaClon1 = clone;
         bombaClon2 = clone2;
+        bombaClon3 = clone3;
+        bombaClon4 = clone4;
+        bombaClon5 = clone5;
+        bombaClon6 = clone6;
+        bombaClon7 = clone7;
+        bombaClon8 = clone8;
+        bombaClon9 = clone9;
     })
     .catch((error) => {
         console.log(error);
@@ -822,6 +929,19 @@ function pausarJuego() {
     textoPausado.style.display = 'block';
 
     document.exitPointerLock();
+
+    // Pausar superpoder
+    if (superpoderActivo && !superpoderEnPausa) {
+        clearInterval(intervaloSuperpoder);
+        clearTimeout(superpoderTimeout);
+
+        // Calcular cuánto tiempo queda
+        const ahora = Date.now();
+        const transcurrido = Math.floor((ahora - inicioSuperpoderTimestamp) / 1000);
+        tiempoRestanteSuperpoder = Math.max(1, tiempoRestanteSuperpoder - transcurrido); // Nunca menos de 1
+
+        superpoderEnPausa = true;
+    }
 }
 
 function reanudarJuego() {
@@ -832,6 +952,30 @@ function reanudarJuego() {
     textoPausado.style.display = 'none';
 
     document.body.requestPointerLock();
+
+    // Reanudar superpoder si estaba activo
+    if (superpoderActivo && superpoderEnPausa) {
+        superpoderIndicator.style.display = 'block';
+        superpoderIndicator.textContent = `Superpoder\nTiempo: ${tiempoRestanteSuperpoder}s`;
+
+        inicioSuperpoderTimestamp = Date.now();
+
+        intervaloSuperpoder = setInterval(() => {
+            tiempoRestanteSuperpoder--;
+            superpoderIndicator.textContent = `Superpoder\nTiempo: ${tiempoRestanteSuperpoder}s`;
+
+            if (tiempoRestanteSuperpoder <= 0) {
+                clearInterval(intervaloSuperpoder);
+                superpoderIndicator.style.display = 'none';
+            }
+        }, 1000);
+
+        superpoderTimeout = setTimeout(() => {
+            finalizarSuperpoder();
+        }, tiempoRestanteSuperpoder * 1000);
+
+        superpoderEnPausa = false;
+    }
 }
 
 function desactivarBomba(bomba) {
@@ -849,6 +993,9 @@ function desactivarBomba(bomba) {
         mensajeCentral.innerText = '¡BOMBA DESACTIVADA!';
         mensajeCentral.style.display = 'block';
 
+        // *** AUMENTAR 1 MINUTO (60 SEGUNDOS) ***
+        tiempoRestante += 60;
+
         setTimeout(() => {
             mensajeCentral.style.display = 'none';
             desactivando = false;
@@ -857,3 +1004,193 @@ function desactivarBomba(bomba) {
     }, 5000);
 }
 
+loader.load('Cubo.glb', (gltf) => {
+    const modelo = gltf.scene;
+
+    // Clon 1
+    const clon1 = modelo.clone();
+    clon1.position.set(37, 3.2, -13);
+    clon1.scale.set(3, 3, 3);
+
+    // Clon 2
+    const clon2 = modelo.clone();
+    clon2.position.set(12.2, 3.2, 0);
+    clon2.scale.set(3, 3, 3);
+
+    // Clon 3
+    const clon3 = modelo.clone();
+    clon3.position.set(-27, 3.2, -20);
+    clon3.scale.set(3, 3, 3);
+
+    // Clon 4
+    const clon4 = modelo.clone();
+    clon4.position.set(-20, 3.2, 0);
+    clon4.scale.set(3, 3, 3);
+
+    // Clon 5
+    const clon5 = modelo.clone();
+    clon5.position.set(0, 3.2, 25);
+    clon5.scale.set(3, 3, 3);
+
+    scene.add(clon1, clon2, clon3, clon4, clon5);
+    cubosSuperpoder.push(clon1, clon2, clon3, clon4, clon5);
+
+});
+
+const cubosSuperpoder = []; // <- Guardaremos los clones del Cubo.glb aquí
+
+let superpoderActivo = false;
+let superpoderTimeout = null;
+
+let tiempoRestanteSuperpoder = 0;
+let intervaloSuperpoder = null;
+let superpoderEnPausa = false;
+let tiempoRestanteTimeoutSuperpoder = 0;
+let inicioSuperpoderTimestamp = 0;
+
+function activarSuperpoder() {
+    if (superpoderActivo) return; // No acumular poderes
+
+    superpoderActivo = true;
+
+    // Elegir superpoder aleatorio
+    const poderes = ['salto', 'velocidad'];
+    const poder = poderes[Math.floor(Math.random() * poderes.length)];
+
+    // Mostrar mensaje
+    mostrarMensajeSuperpoder(poder);
+
+    // Aplicar superpoder
+    if (poder === 'salto') {
+        playerVelocity.y += 20;  // Un impulso inicial opcional
+        GRAVITY_SUPLEMENTO = -30; // Menos gravedad para saltar más alto (temporalmente)
+    } else if (poder === 'velocidad') {
+        SPEED_MULTIPLIER = 2.0;  // Moverse al doble de velocidad (temporalmente)
+    }
+
+    tiempoRestanteSuperpoder = 15;
+    superpoderIndicator.style.display = 'block';
+    superpoderIndicator.textContent = `Superpoder: ${poder}\nTiempo: ${tiempoRestanteSuperpoder}s`;
+
+    // Guarda el timestamp de inicio
+    inicioSuperpoderTimestamp = Date.now();
+
+    intervaloSuperpoder = setInterval(() => {
+        tiempoRestanteSuperpoder--;
+        superpoderIndicator.textContent = `Superpoder: ${poder}\nTiempo: ${tiempoRestanteSuperpoder}s`;
+
+        // Seguridad extra: si llega a 0 manualmente
+        if (tiempoRestanteSuperpoder <= 0) {
+            clearInterval(intervaloSuperpoder);
+            superpoderIndicator.style.display = 'none';
+        }
+    }, 1000);
+
+    superpoderTimeout = setTimeout(() => {
+        finalizarSuperpoder();
+    }, tiempoRestanteSuperpoder * 1000);
+
+    // Quitar superpoder después de 10 segundos
+    superpoderTimeout = setTimeout(() => {
+        superpoderActivo = false;
+        GRAVITY_SUPLEMENTO = 0;
+        SPEED_MULTIPLIER = 1.0;
+
+        clearInterval(intervaloSuperpoder);
+        superpoderIndicator.style.display = 'none';
+
+        ocultarMensajeSuperpoder();
+    }, 15000);
+}
+
+function mostrarMensajeSuperpoder(poder) {
+    if (poder === 'salto') {
+        mensajeSuperpoder.innerText = '¡Super Salto Activado!';
+    } else if (poder === 'velocidad') {
+        mensajeSuperpoder.innerText = '¡Super Velocidad Activada!';
+    }
+    mensajeSuperpoder.style.display = 'block';
+
+    // Ocultar automáticamente después de 2 segundos
+    setTimeout(() => {
+        mensajeSuperpoder.style.display = 'none';
+    }, 2000);
+}
+
+function ocultarMensajeSuperpoder() {
+    mensajeSuperpoder.style.display = 'none';
+}
+
+function finalizarSuperpoder() {
+    superpoderActivo = false;
+    GRAVITY_SUPLEMENTO = 0;
+    SPEED_MULTIPLIER = 1.0;
+
+    clearInterval(intervaloSuperpoder);
+    superpoderIndicator.style.display = 'none';
+    ocultarMensajeSuperpoder();
+}
+
+function mostrarPantallaDerrota() {
+    // Salir del PointerLock si estaba activo
+    document.exitPointerLock();
+
+    // Fondo oscuro translúcido
+    const fondoOscuro = document.createElement('div');
+    fondoOscuro.style.position = 'fixed';
+    fondoOscuro.style.top = '0';
+    fondoOscuro.style.left = '0';
+    fondoOscuro.style.width = '100%';
+    fondoOscuro.style.height = '100%';
+    fondoOscuro.style.backgroundColor = 'rgba(0, 0, 0, 0.85)';
+    fondoOscuro.style.zIndex = '1001';
+    fondoOscuro.style.transition = 'opacity 0.5s';
+    fondoOscuro.style.opacity = '0';
+    document.body.appendChild(fondoOscuro);
+
+    // Contenedor del mensaje
+    const derrotaOverlay = document.createElement('div');
+    derrotaOverlay.style.position = 'fixed';
+    derrotaOverlay.style.top = '50%';
+    derrotaOverlay.style.left = '50%';
+    derrotaOverlay.style.transform = 'translate(-50%, -50%)';
+    derrotaOverlay.style.backgroundColor = 'rgba(0,0,0,0.9)';
+    derrotaOverlay.style.padding = '40px 60px';
+    derrotaOverlay.style.borderRadius = '12px';
+    derrotaOverlay.style.color = 'white';
+    derrotaOverlay.style.fontFamily = 'Arial';
+    derrotaOverlay.style.fontSize = '32px';
+    derrotaOverlay.style.fontWeight = 'bold';
+    derrotaOverlay.style.textAlign = 'center';
+    derrotaOverlay.style.zIndex = '1002';
+    derrotaOverlay.style.opacity = '0';
+    derrotaOverlay.style.transition = 'opacity 0.5s';
+
+    derrotaOverlay.innerHTML = `😞 <br> ¡Has perdido! <br><br> El tiempo se ha agotado.<br><br>`;
+
+    // Botones
+    const botonesContainer = document.createElement('div');
+    botonesContainer.className = 'd-flex justify-content-center gap-3 mt-3';
+
+    const botonReintentar = document.createElement('button');
+    botonReintentar.textContent = 'Reintentar';
+    botonReintentar.className = 'btn btn-primary btn-lg';
+    botonReintentar.onclick = () => location.reload();
+
+    const botonSalir = document.createElement('button');
+    botonSalir.textContent = 'Salir';
+    botonSalir.className = 'btn btn-danger btn-lg';
+    botonSalir.onclick = () => location.href = 'index.html';
+
+    botonesContainer.appendChild(botonReintentar);
+    botonesContainer.appendChild(botonSalir);
+    derrotaOverlay.appendChild(botonesContainer);
+
+    document.body.appendChild(derrotaOverlay);
+
+    // Animación de fade-in
+    requestAnimationFrame(() => {
+        fondoOscuro.style.opacity = '1';
+        derrotaOverlay.style.opacity = '1';
+    });
+}
